@@ -1,0 +1,12 @@
+# Allow-list: only the files needed to build and use the mod are committed.
+*
+!.gitignore
+!README.md
+!LICENSE
+!Plugin.cs
+!BelmontFastLoad.csproj
+!BelmontFastLoad.slnx
+!ext/
+!ext/BelmontUI/
+!ext/BelmontUI/BelmontUI.dll
+!ext/BelmontUI/LICENSE.txt

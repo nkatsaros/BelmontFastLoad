@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Game folder (contains BepInEx\). Override with -p:GameDir="<game folder>" or a GameDir environment variable. -->
+    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Castlevania Belmont's Curse</GameDir>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>BelmontFastLoad</AssemblyName>
+    <RootNamespace>BelmontFastLoad</RootNamespace>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <!-- Release: no PDB and no debug directory (which would record the local build path in the DLL). -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <!-- Record source paths as /_/ instead of the local folder (Debug PDBs, [CallerFilePath]). -->
+    <PathMap>$(MSBuildProjectDirectory)=/_/</PathMap>
+    <!-- Compile only the listed files. -->
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- Single source of truth for the version: the [BepInPlugin] attribute in Plugin.cs. -->
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\Plugin.cs')), 'BepInPlugin\([^)]*"(\d+\.\d+\.\d+)"\)').Groups[1].Value)</Version>
+    <PackageDir>$(MSBuildProjectDirectory)\obj\package</PackageDir>
+    <PackageZip>$(MSBuildProjectDirectory)\bin\BelmontFastLoad-$(Version).zip</PackageZip>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Plugin.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Core.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Unity.IL2CPP.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\core\0Harmony.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\interop\Il2Cppmscorlib.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\interop\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\interop\Assembly-CSharp.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\interop\MotherBase.ApplicationFlowManager.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\interop\MotherBase.ActionFramework.dll" Private="false" />
+    <Reference Include="$(GameDir)\BepInEx\interop\MotherBase.EntityFramework.dll" Private="false" />
+    <!-- Optional soft dependency, compile-time only (never shipped with Belmont FastLoad). -->
+    <Reference Include="$(MSBuildThisFileDirectory)ext\BelmontUI\BelmontUI.dll" Private="false" />
+  </ItemGroup>
+  <Target Name="CheckGameDir" BeforeTargets="ResolveAssemblyReferences;Build">
+    <Error Condition="'$(GameDir)' == '' Or !Exists('$(GameDir)\BepInEx\core')"
+           Text="No BepInEx\core folder in GameDir '$(GameDir)'. If the game isn't in the default Steam folder, add -p:GameDir=&quot;&lt;game folder&gt;&quot;." />
+  </Target>
+  <Target Name="DeployToGame" AfterTargets="Build">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDir)\BepInEx\plugins\BelmontFastLoad" />
+  </Target>
+
+  <!-- dotnet build -c Release -t:Package : zip laid out to extract into the game folder. -->
+  <Target Name="Package" DependsOnTargets="Build">
+    <Error Condition="'$(Configuration)' != 'Release'" Text="Package a Release build: add -c Release." />
+    <Error Condition="'$(Version)' == ''" Text="Could not read the version from [BepInPlugin] in Plugin.cs." />
+    <RemoveDir Directories="$(PackageDir)" />
+    <Copy SourceFiles="$(TargetPath);LICENSE" DestinationFolder="$(PackageDir)\BepInEx\plugins\BelmontFastLoad" />
+    <Delete Files="$(PackageZip)" />
+    <ZipDirectory SourceDirectory="$(PackageDir)" DestinationFile="$(PackageZip)" />
+    <Message Importance="high" Text="Packaged $(PackageZip)" />
+  </Target>
+
+  <!-- dotnet build -c Release -t:GitHubRelease : package, then create release v<version> with the zip (GitHub CLI).
+       The repository comes from the git remote; the tag is created if it doesn't exist. -->
+  <Target Name="GitHubRelease" DependsOnTargets="Package">
+    <Exec Command="gh release create v$(Version) &quot;$(PackageZip)&quot; --title &quot;Belmont FastLoad $(Version)&quot; --generate-notes" />
+  </Target>
+</Project>
